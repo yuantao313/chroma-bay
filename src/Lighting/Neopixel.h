@@ -18,6 +18,7 @@ void NeopixelSetEffect(NeopixelEffect effect, LampColor effectColor);
 
 void NeopixelSetColor(uint16_t lampId, LampColor lampColor);
 void NeopixelSetColorRange(uint16_t lampIdStart, uint16_t lampIdEnd, LampColor lampColor);
+void NeopixelSetMasterEnable(bool enabled);
 
 void NeopixelSendColors();
 void NeopixelUpdateEffect();

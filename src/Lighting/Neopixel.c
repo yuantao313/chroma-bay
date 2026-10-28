@@ -29,42 +29,63 @@ static const uint8_t _NeoPixelSineTable[256] = {
     124};
 
 typedef struct {
-    uint sm;
+    uint sm[NEOPIXEL_CHANNELS];
     PIO pio;
     LampColor pixels[NEOPIXEL_COUNT];
     NeopixelEffect currentEffect;
     LampColor startingColor;
+    bool masterEnabled;
 } NeopixelController;
+
+// Channel wiring table; lamp ids are assigned in channel order
+// (0..CH0_LEN-1 -> ch0)
+static const struct {
+    uint pin;
+    uint16_t len;
+} ChannelConfig[NEOPIXEL_CHANNELS] = {
+    { NEOPIXEL_CH0_PIN, NEOPIXEL_CH0_LEN },
+};
 
 static NeopixelController Controller;
 
 void NeopixelInit(NeopixelEffect effect, LampColor initialEffectColor) {
+    Controller.masterEnabled = true;
+
     // Set effect also initializes pixels
     NeopixelSetEffect(effect, initialEffectColor);
 
-    // Load program into PIO and choose state machine
+    // Load program into PIO; waveform polarity follows PHYSICAL_DATA_INVERTED
     Controller.pio = NEOPIXEL_PIO;
-    Controller.sm = pio_claim_unused_sm(Controller.pio, true);
+#if PHYSICAL_DATA_INVERTED
+    uint offset = pio_add_program(Controller.pio, &ws2812_inverted_program);
+    pio_sm_config baseConfig = ws2812_inverted_program_get_default_config(offset);
+#else
     uint offset = pio_add_program(Controller.pio, &ws2812_program);
-    
-    // Init pins
-    pio_gpio_init(Controller.pio, NEOPIXEL);
-    pio_sm_set_consecutive_pindirs(Controller.pio, Controller.sm, NEOPIXEL, 1, true);
+    pio_sm_config baseConfig = ws2812_program_get_default_config(offset);
+#endif
 
-    // Set config values
-    pio_sm_config config = ws2812_program_get_default_config(offset);
-    sm_config_set_sideset_pins(&config, NEOPIXEL);
-    sm_config_set_out_shift(&config, false, true, 24);
-    sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_TX);
-
-    // Calculate and set clock divider
+    // Calculate clock divider (same for all channels)
     int cyclesPerBit = ws2812_T1 + ws2812_T2 + ws2812_T3;
     float div = clock_get_hz(clk_sys) / (NEOPIXEL_BITRATE * cyclesPerBit);
-    sm_config_set_clkdiv(&config, div);
 
-    // Init state machine with config values and start
-    pio_sm_init(Controller.pio, Controller.sm, offset, &config);
-    pio_sm_set_enabled(Controller.pio, Controller.sm, true);
+    // One state machine per channel
+    for (int ch = 0; ch < NEOPIXEL_CHANNELS; ch++) {
+        uint pin = ChannelConfig[ch].pin;
+        uint sm = pio_claim_unused_sm(Controller.pio, true);
+        Controller.sm[ch] = sm;
+
+        pio_gpio_init(Controller.pio, pin);
+        pio_sm_set_consecutive_pindirs(Controller.pio, sm, pin, 1, true);
+
+        pio_sm_config config = baseConfig;
+        sm_config_set_sideset_pins(&config, pin);
+        sm_config_set_out_shift(&config, false, true, 24);
+        sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_TX);
+        sm_config_set_clkdiv(&config, div);
+
+        pio_sm_init(Controller.pio, sm, offset, &config);
+        pio_sm_set_enabled(Controller.pio, sm, true);
+    }
 }
 
 void NeopixelSetEffect(NeopixelEffect effect, LampColor effectColor) {
@@ -94,18 +115,24 @@ void NeopixelSetColorRange(uint16_t lampIdStart, uint16_t lampIdEnd, LampColor l
     }
 }
 
-void NeopixelSendColors() {
-    uint32_t grb_value;
-    for (int i = 0; i < NEOPIXEL_COUNT; i++) {
-        if (Controller.pixels[i].intensity == 0) {
-            grb_value = 0;
-        } else {
-            grb_value = (Controller.pixels[i].green << 24) |
-                             (Controller.pixels[i].red << 16)   | 
-                             (Controller.pixels[i].blue << 8);
-        }
+void NeopixelSetMasterEnable(bool enabled) {
+    Controller.masterEnabled = enabled;
+}
 
-        pio_sm_put_blocking(Controller.pio, Controller.sm, grb_value);
+void NeopixelSendColors() {
+    uint16_t lampId = 0;
+    for (int ch = 0; ch < NEOPIXEL_CHANNELS; ch++) {
+        for (uint16_t i = 0; i < ChannelConfig[ch].len; i++, lampId++) {
+            uint32_t grb_value;
+            if (!Controller.masterEnabled || Controller.pixels[lampId].intensity == 0) {
+                grb_value = 0;
+            } else {
+                grb_value = (Controller.pixels[lampId].green << 24) |
+                            (Controller.pixels[lampId].red << 16)   |
+                            (Controller.pixels[lampId].blue << 8);
+            }
+            pio_sm_put_blocking(Controller.pio, Controller.sm[ch], grb_value);
+        }
     }
 }
 

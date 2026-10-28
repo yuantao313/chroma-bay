@@ -6,9 +6,16 @@
 #include "Neopixel.h"
 #include "../util.h"
 #include "tusb.h"
-#include "../Keys/keymap.h"
 
 static uint16_t currentLampId = 0;
+
+static uint32_t getCount = 0;
+static uint32_t setCount = 0;
+
+uint32_t hid_get_count(void) { return getCount; }
+uint32_t hid_set_count(void) { return setCount; }
+void hid_get_count_increment(void) { getCount++; }
+void hid_set_count_increment(void) { setCount++; }
 
 uint16_t GetLampArrayAttributesReport(uint8_t* buffer) {
     LampArrayAttributesReport report = {
@@ -27,16 +34,16 @@ uint16_t GetLampArrayAttributesReport(uint8_t* buffer) {
 
 uint16_t GetLampAttributesReport(uint8_t* buffer) {
     LampAttributesResponseReport report = {
-        currentLampId,                                          // LampId
-        LampPositions[currentLampId],                           // Lamp position               
-        LAMPARRAY_UPDATE_INTERVAL,                              // Lamp update interval
-        LAMP_PURPOSE_CONTROL,                                   // Lamp purpose
-        255,                                                    // Red level count
-        255,                                                    // Blue level count
-        255,                                                    // Green level count
-        1,                                                      // Intensity
-        1,                                                      // Is Programmable
-        layers[0].macros[LampIdToKey(currentLampId)].keycode[0] // InputBinding
+        currentLampId,                      // LampId
+        LampPositionAt(currentLampId),      // Lamp position
+        LAMPARRAY_UPDATE_INTERVAL,          // Lamp update interval
+        LAMP_PURPOSE_ACCENT,                // Lamp purpose
+        255,                                // Red level count
+        255,                                // Blue level count
+        255,                                // Green level count
+        1,                                  // Intensity
+        1,                                  // Is Programmable
+        0                                   // InputBinding (no input device)
     };
 
     memcpy(buffer, &report, sizeof(LampAttributesResponseReport));

@@ -1,41 +1,22 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V0.0.9 BLOCK -->
+# Security
 
-## Security
+这是一个个人项目的衍生 fork，**并非** Microsoft 官方发布的产品。
 
-Microsoft takes the security of our software products and services seriously, which includes all source code repositories managed through our GitHub organizations, which include [Microsoft](https://github.com/Microsoft), [Azure](https://github.com/Azure), [DotNet](https://github.com/dotnet), [AspNet](https://github.com/aspnet) and [Xamarin](https://github.com/xamarin).
+## 报告问题
 
-If you believe you have found a security vulnerability in any Microsoft-owned repository that meets [Microsoft's definition of a security vulnerability](https://aka.ms/security.md/definition), please report it to us as described below.
+如果你在本仓库的代码里发现问题（例如灯效数据解析、USB 描述符），请直接在本仓库开 issue：
 
-## Reporting Security Issues
+<https://github.com/yuantao313/chroma-bay/issues>
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+**请不要**向 Microsoft MSRC 报告本 fork 的问题 —— 本仓库的改动不由 Microsoft 维护，
+MSRC 无法处理针对本 fork 的报告。
 
-Instead, please report them to the Microsoft Security Response Center (MSRC) at [https://msrc.microsoft.com/create-report](https://aka.ms/security.md/msrc/create-report).
+## 上游
 
-If you prefer to submit without logging in, send email to [secure@microsoft.com](mailto:secure@microsoft.com).  If possible, encrypt your message with our PGP key; please download it from the [Microsoft Security Response Center PGP Key page](https://aka.ms/security.md/msrc/pgp).
+上游项目为 [microsoft/RP2040MacropadHidSample](https://github.com/microsoft/RP2040MacropadHidSample)。
+如果你发现的问题同样存在于上游原始代码中，请按上游的流程处理（见上游仓库的 `SECURITY.md`）。
 
-You should receive a response within 24 hours. If for some reason you do not, please follow up via email to ensure we received your original message. Additional information can be found at [microsoft.com/msrc](https://www.microsoft.com/msrc). 
+## 范围说明
 
-Please include the requested information listed below (as much as you can provide) to help us better understand the nature and scope of the possible issue:
-
-  * Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
-  * Full paths of source file(s) related to the manifestation of the issue
-  * The location of the affected source code (tag/branch/commit or direct URL)
-  * Any special configuration required to reproduce the issue
-  * Step-by-step instructions to reproduce the issue
-  * Proof-of-concept or exploit code (if possible)
-  * Impact of the issue, including how an attacker might exploit the issue
-
-This information will help us triage your report more quickly.
-
-If you are reporting for a bug bounty, more complete reports can contribute to a higher bounty award. Please visit our [Microsoft Bug Bounty Program](https://aka.ms/security.md/msrc/bounty) page for more details about our active programs.
-
-## Preferred Languages
-
-We prefer all communications to be in English.
-
-## Policy
-
-Microsoft follows the principle of [Coordinated Vulnerability Disclosure](https://aka.ms/security.md/cvd).
-
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
+本固件没有网络栈，也不处理不可信输入：USB 报文由 TinyUSB 栈在固定长度的报告缓冲区内解析，
+灯位数组的越界访问在 `NeopixelSetColor` / `NeopixelSetColorRange` 中做了上界检查。

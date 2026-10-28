@@ -1,6 +1,6 @@
 # Microsoft Open Source Code of Conduct
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+本项目派生自 Microsoft 的开源示例，沿用其行为准则。
 
 Resources:
 

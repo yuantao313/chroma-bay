@@ -26,17 +26,15 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
+/* This device exposes a fixed set of interfaces (HID LampArray + CDC), so unlike
+ * the upstream sample it uses one constant product id rather than deriving the
+ * PID from the enabled interface bitmap.
  *
- * Auto ProductID layout's Bitmap:
- *   [MSB]         HID | MSC | CDC          [LSB]
+ * Product identity: pid.codes community VID with an experimental product ID.
+ * See https://pid.codes/1209/A16C/
  */
-#define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) )
-
-#define USB_VID   0xCafe
+#define USB_VID   0x1209
+#define USB_PID   0xA16C
 #define USB_BCD   0x0200
 
 //--------------------------------------------------------------------
@@ -71,8 +69,9 @@ uint8_t const * tud_descriptor_device_cb(void) {
 //--------------------------------------------------------------------
 // HID Report Descriptor
 //--------------------------------------------------------------------
+// Lighting only: the macropad's keyboard collection is dropped so the device
+// enumerates as a pure LampArray (no HID boot keyboard interface).
 uint8_t const desc_hid_report[] = {
-    TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD )       ),
     TUD_HID_REPORT_DESC_LIGHTING( REPORT_ID_LIGHTING_LAMP_ARRAY_ATTRIBUTES )
 };
 
@@ -170,10 +169,10 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index) {
 // array of pointer to string descriptors
 char const* string_desc_arr [] = {
     (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
-    "Adafruit",                    // 1: Manufacturer
-    "Macropad",                    // 2: Product
+    "pid.codes",                   // 1: Manufacturer
+    "ChromaBay ARGB Controller",   // 2: Product
     "RP2040 Pico",                 // 3: Serials, Should use chip ID
-    "Macropad Serial",             // 4: CDC Interface
+    "ChromaBay CDC",               // 4: CDC Interface
 };
 
 static uint16_t _desc_str[32];

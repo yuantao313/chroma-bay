@@ -1,75 +1,126 @@
-# Microsoft RP2040 LampArray Sample
-This project includes a sample for creating a LampArray deivce on the [Adafruit Macropad](https://www.adafruit.com/product/5128), which allows it to be controlled using Windows Lighting. This is done using the [Raspberry Pi Pico C/C++ SDK](https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf) and [TinyUSB](https://docs.tinyusb.org/en/latest/).
+# ChromaBay
 
-<img src="LightingDemo.gif" alt="Macropad RGB lights demo"/>
+机箱 **2.5" 硬盘位 ARGB 灯控固件** —— 基于 Raspberry Pi Pico（RP2040），由 Windows 11 动态照明直接驱动。
 
-In this sample, there are two layers which are controlled by the rotary encoder. The default layer is a simple numpad layout, and the second layer is all blanks ready to be filed with any Macro command. The current design only allows one key combination to be sent at a time, and each combination is limited to two modifier keys (control, alt, shift, etc.) and 6 keys at a time, which is a limitation of the HID standard. 
+本仓库是 [microsoft/RP2040MacropadHidSample](https://github.com/microsoft/RP2040MacropadHidSample) 的 fork，
+去掉了 macropad 的键盘矩阵 / 旋钮编码器 / OLED / 扬声器部分，只保留 **HID LampArray 灯控** 这一条主线，
+并把板级配置改到本项目的 ARGB 控制器上。
 
-This sample implements the [LampArray HID](https://www.usb.org/sites/default/files/hutrr84_-_lighting_and_illumination_page.pdf) standard, so when connected to any LampArry HID controller, this device should be able to be controlled. Additionally, a developer can control the RGB device effects from the [Windows LampArray API](https://learn.microsoft.com/en-us/uwp/api/windows.devices.lights.lamparray?view=winrt-22621). See the AutoRGB sample here: https://github.com/microsoft/Dynamic-Lighting-AutoRGB.
+## 这是什么
 
-This can be used as a template for other RP2040 devices which are connected to NeoPixels, or the Lighting folder can be used as a starting point for any project that uses TinyUSB.
+一块用两颗 2.5 英寸硬盘位螺丝固定在机箱内的 ARGB 控制器。RP2040 驱动机箱灯条，对外是一个 USB 复合设备：
 
-Note, this project was built off of the Hid Composite sample in the [Pico-Examples repository](https://github.com/raspberrypi/pico-examples/tree/master/usb/device/dev_hid_composite). Additionally, this project uses the PIO example in the Pico C/C++ SDK [documentation](https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf?_gl=1*1sdq912*_ga*Mjk2MDU5ODkuMTY5NDQ1NjkzNg..*_ga_22FD70LWDS*MTY5NDQ1NjkzNi4xLjEuMTY5NDQ1NzAwNy4wLjAuMA..), section 3.2.2: A Real Example: WS2812 LEDs.
+- **HID LampArray** —— Windows 11「动态照明」原生识别，系统设置里直接调光效，无需第三方软件。
+- **CDC ACM** —— 串口维护通道，用于读取状态和免按键进入 BOOTSEL。
 
-## Macropad Setup instructions
-Note, that this project was built and tested using the latest Ubuntu WSL. Other distributions and the Windows version of the Pico SDK should work, but those options have not been verified.
+板载 GP25 心跳灯用于观察运行状态；看门狗复位后前 3 秒快闪，便于识别异常重启。
 
-1. [Install WSL](https://learn.microsoft.com/en-us/windows/wsl/install) onto Windows Machine. 
-2. `git clone` this project into WSL distribtion. This directory will now be the project directory.
-3. Install build dependencies.
+## 相对上游的改动
 
+| 改动 | 说明 |
+|---|---|
+| 移除 `src/Keys/`、`src/Encoder/` | 无键盘、无旋钮，设备不再暴露 HID 键盘集合 |
+| 移除灯泡/OLED 相关引脚与代码 | 上游 `macropad.c` 中的键盘轮询定时器、`keyboardTimerCallback` 全部删除 |
+| `macropad.c` → `main.c` | 仅保留灯控主循环，并加入看门狗、hardfault 钩子、CDC 维护通道 |
+| USB 报告描述符 | 去掉 `TUD_HID_REPORT_DESC_KEYBOARD`，只留 `TUD_HID_REPORT_DESC_LIGHTING` |
+| VID/PID | 由上游的 `0xCafe` 派生 PID 改为 pid.codes 的 `1209:A16C` |
+| LampArray 属性 | `LAMPARRAY_KIND` 由 Keyboard(1) 改为 Chassis(7)；灯位改为单排线性网格 |
+| PIO 程序 | 新增 `ws2812_inverted` 变体，补偿本板输出级的反相 |
+
+## 硬件
+
+| 项目 | 说明 |
+|---|---|
+| 主控 | Raspberry Pi Pico（经典 RP2040，`PICO_BOARD=pico`） |
+| ARGB 输出 | **GP28**，单路，8 灯（WS2812 / SK6812 类 800 kHz 灯珠） |
+| 状态指示灯 | **GP25**（板载 LED，心跳） |
+| 固定方式 | 机箱 2.5" 硬盘位螺丝孔 |
+| USB 标识 | `1209:A16C`（pid.codes 社区 VID + 实验性 PID） |
+
+**数据极性**：本板输出级对数据线做了反相，因此固件通过 `PHYSICAL_DATA_INVERTED` 输出反相波形补偿，
+灯珠端仍得到标准 WS2812 极性。若改为直接驱动（无反相级），把该宏置 0 即可。
+
+引脚、灯数等产品参数集中在 [`src/util.h`](src/util.h)。
+
+## 构建
+
+```powershell
+powershell -File scripts/build-windows.ps1
 ```
-sudo apt update
-sudo apt install build-essential
+
+依赖版本与获取方式见 [`docs/dependencies.md`](docs/dependencies.md)。产物：`build/chroma_bay.{elf,uf2,bin,map}`。
+
+也可以手动构建：
+
+```powershell
+cmake -S src -B build -G Ninja -DPICO_BOARD=pico -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 ```
 
-4. Follow Pico SDK setup instructions from https://github.com/raspberrypi/pico-sdk up through step 2c. (For step 2, follow set up instructions by cloning the SDK) 
-5. cd to the SDK directory and run `git submodule update --init`
-6. Update TinyUSB in Pico SDK to latest version
+## 烧录
 
+1. 按住 Pico 的 **BOOTSEL** 键插入 USB（或按住后短按 RESET）。
+2. 把 `build/chroma_bay.uf2` 复制到出现的 `RPI-RP2` 磁盘。
+3. 设备自动重启并运行新固件。
+
+也可以连上 CDC 串口（115200）发送 `B`，让固件直接跳进 BOOTSEL。
+
+## 调试
+
+CDC 维护通道：
+
+| 输入 | 行为 |
+|---|---|
+| `?` | 打印一行状态：挂载状态、HID get/set 计数、启动次数、是否看门狗复位 |
+| `B` | 重启进入 BOOTSEL 模式 |
+
+`scripts/` 下另有主机侧探针脚本（Windows PowerShell），用于校验枚举出来的 HID 集合与 LampArray 属性。
+
+## 目录结构
+
+```text
+├── src/
+│   ├── CMakeLists.txt          # 固件构建入口，目标 chroma_bay
+│   ├── main.c                  # 主循环、看门狗、HID/CDC 回调
+│   ├── util.h                  # 产品配置：引脚、灯数、极性、LampArray 属性
+│   ├── usb_descriptors.c/.h    # VID/PID、LampArray 报告描述符
+│   ├── tusb_config.h           # TinyUSB 配置
+│   └── Lighting/
+│       ├── Neopixel.c/.h       # PIO 灯珠驱动与本地灯效
+│       ├── neopixel.pio        # WS2812 时序程序（含反相变体）
+│       ├── LampArray.c/.h      # HID LampArray 请求处理
+│       └── LampArrayHidStructs.h
+├── scripts/                    # 构建与调试脚本
+├── docs/dependencies.md        # 依赖与版本锁定
+├── LICENSE                     # MIT（Microsoft Corporation）
+└── NOTICE.md                   # 第三方组件许可（TinyUSB / Raspberry Pi PIO）
 ```
-cd <pico sdk dir>/lib/tinyusb
-git checkout master
-git pull
-```
-_Note, this may not be needed once updates to TinyUSB containing the LampArrayHID information reaches a release branch._
 
-7. cd to `<ProjectDirectory>/src` and setup CMake build directory:
-```
-mkdir build
-cd build
-cmake -DPICO_BOARD=adafruit_macropad_rp2040 ..
-```
-Note, if PICO_SDK_PATH environment variable has not been set up in step 3, `-DPICO_SDK_PATH=` will need to be specified as well.
+## 功能状态
 
-8. Make your target from the project build directory.
+| 功能 | 状态 |
+|---|---|
+| Windows 原生交叉构建（无 MSVC） | 可用 |
+| PIO 单路输出（GP28 × 8） | 可用 |
+| HID LampArray（Windows 11 动态照明） | 开发中 |
+| CDC Adalight（OpenRGB） | 开发中 |
+| 控制权仲裁 / 配置持久化 | 开发中 |
 
-```
-make
-```
+## 许可与署名
 
-9. On the Macropad, while holding down the rotary encoder button, press the reset button on the left side of the board, right under the OLED screen. Macropad device should show up as a removable device `RPI-RP2 (DriveLetter:)`
-10. Open an Explorer window to the build directory, and copy `macropad.uf2` under the build directory to the Macropad removeable device. Device should automatically remove itself and reboot.
-11. Open Settings > Personalization > Dynamic Lighting, and see the device come up. 
+本仓库派生自 Microsoft 的 RP2040 Macropad LampArray 示例，沿用 **MIT** 许可，
+原始版权归 Microsoft Corporation，见 [`LICENSE`](LICENSE)。
+`src/usb_descriptors.c/.h` 源自 TinyUSB（Copyright (c) 2019 Ha Thach），
+`src/Lighting/neopixel.pio` 源自 Raspberry Pi pico-examples，
+第三方组件的完整许可见 [`NOTICE.md`](NOTICE.md)，**这些声明必须随衍生作品保留**。
 
-## Contributing
-
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
-
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+上游示例可作其他 RP2040 + NeoPixel 设备的模板，`Lighting/` 目录也可作为任何 TinyUSB 项目的起点：
+<https://github.com/microsoft/RP2040MacropadHidSample>
 
 ## Trademarks
 
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
-trademarks or logos is subject to and must follow 
+This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
+trademarks or logos is subject to and must follow
 [Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
 Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
 Any use of third-party trademarks or logos are subject to those third-party's policies.

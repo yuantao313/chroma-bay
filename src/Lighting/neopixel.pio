@@ -14,3 +14,24 @@ do_one:
 do_zero:
     nop            side 0 [T2 - 1]  ; Or drive low, for a zero (short pulse) (480 ns)
 .wrap
+
+; Inverted variant: identical WS2812 timing, but every sideset level is swapped,
+; so the emitted waveform is the logical complement of the one above. Used when
+; the board's output stage inverts the data line (see PHYSICAL_DATA_INVERTED),
+; so the lamp again receives normal WS2812 polarity and idle-low framing.
+.program ws2812_inverted
+.side_set 1
+
+.define public T1 2
+.define public T2 5
+.define public T3 3
+
+.wrap_target
+bitloop:
+    out x 1        side 1 [T3 - 1]
+    jmp !x do_zero side 0 [T1 - 1]
+do_one:
+    jmp  bitloop   side 0 [T2 - 1]
+do_zero:
+    nop            side 1 [T2 - 1]
+.wrap
