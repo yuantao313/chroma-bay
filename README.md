@@ -108,11 +108,6 @@ CDC 维护通道：
 | CDC 维护通道（`?` 查状态、`B` 进 BOOTSEL） | `src/main.c` |
 | 启动计数与看门狗复位识别 | `src/main.c` |
 
-## 范围
-
-本固件的控制通道是 **HID LampArray**，面向 Windows 11 动态照明。
-串口通道用于维护，不承载灯效数据；Adalight / OpenRGB 与配置文件持久化不在当前范围内。
-
 ## 许可与署名
 
 本仓库派生自 Microsoft 的 RP2040 Macropad LampArray 示例，沿用 **MIT** 许可，
