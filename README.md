@@ -10,8 +10,10 @@
 
 一块用两颗 2.5 英寸硬盘位螺丝固定在机箱内的 ARGB 控制器。RP2040 驱动机箱灯条，对外是一个 USB 复合设备：
 
-- **HID LampArray** —— Windows 11「动态照明」原生识别，系统设置里直接调光效，无需第三方软件。
-- **CDC ACM** —— 串口维护通道，用于读取状态和免按键进入 BOOTSEL。
+- **HID LampArray** —— 目标是让 Windows 11「动态照明」原生识别，在系统设置里直接调光效。
+  实现沿用微软示例，6 个 report 都在；开发过程中曾用 `scripts/` 下的探针脚本对硬件调试过，
+  但**没有留下端到端验证记录**，仓库里也不含实测数据。
+- **CDC ACM** —— 串口维护通道，用于读取状态和免按键进入 BOOTSEL。不是 Adalight 协议。
 
 板载 GP25 心跳灯用于观察运行状态；看门狗复位后前 3 秒快闪，便于识别异常重启。
 
@@ -96,15 +98,26 @@ CDC 维护通道：
 └── NOTICE.md                   # 第三方组件许可（TinyUSB / Raspberry Pi PIO）
 ```
 
-## 功能状态
+## 已实现的功能
 
-| 功能 | 状态 |
+以下功能在代码里存在且经过编译验证，**仅此而已**：
+
+| 功能 | 代码位置 |
 |---|---|
-| Windows 原生交叉构建（无 MSVC） | 可用 |
-| PIO 单路输出（GP28 × 8） | 可用 |
-| HID LampArray（Windows 11 动态照明） | 开发中 |
-| CDC Adalight（OpenRGB） | 开发中 |
-| 控制权仲裁 / 配置持久化 | 开发中 |
+| Windows 原生交叉构建（无 MSVC） | `scripts/build-windows.ps1` |
+| PIO 单路 WS2812 输出（GP28 × 8，含反相变体） | `src/Lighting/Neopixel.c`、`neopixel.pio` |
+| HID LampArray 全部 6 个 report | `src/main.c`（GET 2 / SET 4）、`src/Lighting/LampArray.c` |
+| 本地灯效（常亮 / 正弦呼吸） | `src/Lighting/Neopixel.c` |
+| GP25 心跳 + 看门狗 + hardfault 捕获 | `src/main.c` |
+| CDC 维护通道（`?` 查状态、`B` 进 BOOTSEL） | `src/main.c` |
+| 启动计数与看门狗复位识别 | `src/main.c` |
+
+## 未实现的功能
+
+**没有** Adalight / OpenRGB 支持，也**没有**控制权仲裁和配置持久化 —— 这些在代码里一行都没有。
+CDC 通道只做状态查询和进入 BOOTSEL，不是 Adalight 协议，OpenRGB 目前识别不到这台设备。
+
+如果以后要做，OpenRGB 的接入方式是在 CDC 上实现 Adalight 协议帧。
 
 ## 许可与署名
 
